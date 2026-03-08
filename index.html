@@ -1366,9 +1366,9 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
 // THRESHOLD AUTH + SDK INTEGRATION
 // ============================================================
 const THRESHOLD_API = 'https://thresholdlabs.io';
-const THRESHOLD_APP_ID = 'deckydecks';
+const THRESHOLD_APP_ID = 'ec6dbe31-3949-47c8-bbe8-207f042ef75c';
 const THRESHOLD_APP_TOKEN = 'thld_a28b80c4aa5aac8855db0302339700a32fe33ffbceab670234e3cd485b0c7e47';
-const THRESHOLD_CALLBACK_PATH = '/';
+const THRESHOLD_CALLBACK_PATH = '/auth/callback';
 
 // ---- ThresholdAuth (inline, matches @threshold-labs/integration/auth contract) ----
 const thresholdAuth = {
@@ -1449,9 +1449,10 @@ const thresholdAuth = {
   const params = new URLSearchParams(location.search);
   const code = params.get('code');
   if (code) {
-    // Clean the URL
-    history.replaceState({}, '', location.pathname);
-    thresholdAuth.handleCallback(code).then(session => {
+    const redirectUri = location.origin + THRESHOLD_CALLBACK_PATH;
+    // Clean the URL back to root
+    history.replaceState({}, '', '/');
+    thresholdAuth.handleCallback(code, redirectUri).then(session => {
       console.log('[DeckyDecks] Authenticated:', session.userId, 'tier:', thresholdAuth.tier);
       updateAuthUI();
     }).catch(err => {
