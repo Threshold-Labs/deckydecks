@@ -2,6 +2,9 @@
 sessions.jsonl
 feedback.jsonl
 
+# Generated/personal decks (engine ships with inline sample only)
+*.deck.json
+
 # OS
 .DS_Store
 
