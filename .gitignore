@@ -10,3 +10,6 @@ feedback.jsonl
 
 # Node
 node_modules/
+
+# Deploy artifact
+.deploy/

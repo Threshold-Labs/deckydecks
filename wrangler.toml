@@ -1,0 +1,13 @@
+name = "deckydecks"
+pages_build_output_dir = ".deploy"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deckydecks-db"
+database_id = "7400e170-705d-419b-a0b7-f24af76499e3"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "deckydecks-storage"

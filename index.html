@@ -1314,6 +1314,13 @@ const GENERATOR_DECK = {
 
 
 // ============================================================
+// API BASE — auto-detect local dev vs production
+// ============================================================
+const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:3333'
+  : '/api';
+
+// ============================================================
 // THRESHOLD SDK INTEGRATION
 // ============================================================
 const THRESHOLD_API = 'https://thresholdlabs.io';
@@ -1577,7 +1584,7 @@ const deckActions = {
   },
   async launchFeedbackDeck() {
     try {
-      const resp = await fetch('http://localhost:3333/feedback-deck');
+      const resp = await fetch(`${API_BASE}/feedback-deck`);
       if (!resp.ok) throw new Error('Failed to load feedback deck');
       const deck = await resp.json();
       launchDeck(deck);
@@ -1585,8 +1592,8 @@ const deckActions = {
       console.error('[Deck Engine] Failed to load feedback deck:', err);
       // Fallback: show error as a mini deck
       launchDeck({
-        meta: { title: 'Feedback Error', author: 'Deck Engine', startNode: 'err' },
-        nodes: { err: { type: 'hero', title: 'Could not load feedback.', subtitle: 'Make sure the local server is running at localhost:3333.', next: null } }
+        meta: { title: 'Feedback Error', author: 'DeckyDecks', startNode: 'err' },
+        nodes: { err: { type: 'hero', title: 'Could not load feedback.', subtitle: err.message, next: null } }
       });
     }
   }
@@ -1626,14 +1633,12 @@ function saveSession() {
 
   console.log('[Deck Engine] Session saved:', session.sessionId, session.deckTitle);
 
-  // Persist to local server
-  if (_localServerAvailable) {
-    fetch('http://localhost:3333/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(session)
-    }).catch(() => {});
-  }
+  // Persist to server
+  fetch(`${API_BASE}/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(session)
+  }).catch(() => {});
 
   // Push to Threshold (Pattern 1 signal)
   pushSessionSignal(session);
@@ -1829,7 +1834,7 @@ async function populateLibrary() {
   // Try fetching from local server
   let decks = [];
   try {
-    const resp = await fetch('http://localhost:3333/decks', { signal: AbortSignal.timeout(2000) });
+    const resp = await fetch(`${API_BASE}/decks`, { signal: AbortSignal.timeout(2000) });
     if (resp.ok) decks = await resp.json();
   } catch {}
 
@@ -1862,7 +1867,7 @@ async function populateLibrary() {
     item.addEventListener('click', async () => {
       const file = item.dataset.deckFile;
       try {
-        const resp = await fetch(`http://localhost:3333/deck/${file}`);
+        const resp = await fetch(`${API_BASE}/deck/${file}`);
         if (!resp.ok) throw new Error('Failed to load');
         const deck = await resp.json();
         if (deck.meta && deck.nodes) launchDeck(deck);
@@ -2152,14 +2157,12 @@ document.getElementById('feedback-submit').addEventListener('click', () => {
     sessionFeedback.push(entry);
     console.log('[Deck Engine] Feedback:', entry);
 
-    // Persist to local server
-    if (_localServerAvailable) {
-      fetch('http://localhost:3333/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry)
-      }).catch(() => {});
-    }
+    // Persist to server
+    fetch(`${API_BASE}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    }).catch(() => {});
 
     // Push to Threshold (Pattern 1 signal)
     pushFeedbackSignal(entry);
@@ -2543,7 +2546,7 @@ let _localServerAvailable = null;
 async function checkLocalServer() {
   if (_localServerAvailable !== null) return _localServerAvailable;
   try {
-    const resp = await fetch('http://localhost:3333/health', { signal: AbortSignal.timeout(1000) });
+    const resp = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
     _localServerAvailable = resp.ok;
   } catch {
     _localServerAvailable = false;
@@ -2585,10 +2588,11 @@ async function runGeneration(nodeId) {
     completeStep(detectStep);
 
     if (useLocalServer) {
-      // ---- LOCAL SERVER PATH (claude -p, no API key needed) ----
-      const genStep = addStep('Generating via local server (claude -p)...');
+      // ---- SERVER PATH (local dev or CF Worker) ----
+      const isLocal = API_BASE.includes('localhost');
+      const genStep = addStep(isLocal ? 'Generating via local server (claude -p)...' : 'Generating via DeckyDecks server...');
 
-      const resp = await fetch('http://localhost:3333/generate', {
+      const resp = await fetch(`${API_BASE}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(generatorContext)
