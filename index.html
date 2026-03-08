@@ -1403,15 +1403,20 @@ const thresholdAuth = {
   async handleCallback(code, redirectUri) {
     const res = await fetch(`${THRESHOLD_API}/auth/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${THRESHOLD_APP_TOKEN}`,
+      },
       body: JSON.stringify({
         code,
         redirect_uri: redirectUri || (location.origin + THRESHOLD_CALLBACK_PATH),
         app_id: THRESHOLD_APP_ID,
-        app_token: THRESHOLD_APP_TOKEN,
       }),
     });
-    if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`Auth failed: ${res.status} ${errBody}`);
+    }
     const data = await res.json();
     this._userToken = data.token;
     this._userId = data.userId;
