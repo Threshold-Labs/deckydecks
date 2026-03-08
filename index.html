@@ -858,9 +858,51 @@ textarea.slide-input {
 .engagement-pct.mid { color: #fdcb6e; }
 .engagement-pct.low { color: var(--accent-warm); }
 .pf-idle-indicator { color: var(--text-muted); opacity: 0.5; font-size: 0.6rem; margin-left: 2px; }
+
+/* ---- AUTH INDICATOR ---- */
+#auth-indicator {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.auth-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+}
+.auth-authenticated {
+  background: rgba(108, 92, 231, 0.15);
+  color: var(--accent-primary);
+  border: 1px solid rgba(108, 92, 231, 0.3);
+}
+.auth-action {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  transition: all 0.2s;
+}
+.auth-action:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  background: rgba(108, 92, 231, 0.1);
+}
 </style>
 </head>
 <body>
+
+<!-- Auth indicator -->
+<div id="auth-indicator"></div>
 
 <!-- Ambient background orbs -->
 <div class="bg-orbs">
@@ -1321,10 +1363,114 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
   : '/api';
 
 // ============================================================
-// THRESHOLD SDK INTEGRATION
+// THRESHOLD AUTH + SDK INTEGRATION
 // ============================================================
 const THRESHOLD_API = 'https://thresholdlabs.io';
+const THRESHOLD_APP_ID = 'deckydecks';
 const THRESHOLD_APP_TOKEN = 'thld_a28b80c4aa5aac8855db0302339700a32fe33ffbceab670234e3cd485b0c7e47';
+const THRESHOLD_CALLBACK_PATH = '/';
+
+// ---- ThresholdAuth (inline, matches @threshold-labs/integration/auth contract) ----
+const thresholdAuth = {
+  _userToken: localStorage.getItem('threshold:user_token') || null,
+  _userId: localStorage.getItem('threshold:user_id') || null,
+  _deviceId: localStorage.getItem('threshold:device_id') || (() => {
+    const id = crypto.randomUUID();
+    localStorage.setItem('threshold:device_id', id);
+    return id;
+  })(),
+  _onChangeCallbacks: [],
+
+  get tier() {
+    if (this._userToken) return 'authenticated';
+    if (this._deviceId) return 'device';
+    return 'ephemeral';
+  },
+  get userId() { return this._userId; },
+  get deviceId() { return this._deviceId; },
+  get userToken() { return this._userToken; },
+
+  startLogin(opts = {}) {
+    const redirectUri = opts.redirectUri || (location.origin + THRESHOLD_CALLBACK_PATH);
+    const params = new URLSearchParams({
+      app_id: THRESHOLD_APP_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+    });
+    location.href = `${THRESHOLD_API}/auth/authorize?${params}`;
+  },
+
+  async handleCallback(code, redirectUri) {
+    const res = await fetch(`${THRESHOLD_API}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code,
+        redirect_uri: redirectUri || (location.origin + THRESHOLD_CALLBACK_PATH),
+        app_id: THRESHOLD_APP_ID,
+        app_token: THRESHOLD_APP_TOKEN,
+      }),
+    });
+    if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
+    const data = await res.json();
+    this._userToken = data.token;
+    this._userId = data.userId;
+    localStorage.setItem('threshold:user_token', data.token);
+    localStorage.setItem('threshold:user_id', data.userId);
+    this._onChangeCallbacks.forEach(cb => cb(this.tier));
+    return data;
+  },
+
+  logout() {
+    this._userToken = null;
+    this._userId = null;
+    localStorage.removeItem('threshold:user_token');
+    localStorage.removeItem('threshold:user_id');
+    this._onChangeCallbacks.forEach(cb => cb(this.tier));
+  },
+
+  onAuthChange(cb) { this._onChangeCallbacks.push(cb); },
+
+  getHeaders() {
+    const token = this._userToken || THRESHOLD_APP_TOKEN;
+    return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  },
+
+  async fetch(path, opts = {}) {
+    return fetch(`${THRESHOLD_API}${path}`, {
+      ...opts,
+      headers: { ...this.getHeaders(), ...(opts.headers || {}) },
+    });
+  },
+};
+
+// Handle OAuth callback on page load
+(function handleAuthCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if (code) {
+    // Clean the URL
+    history.replaceState({}, '', location.pathname);
+    thresholdAuth.handleCallback(code).then(session => {
+      console.log('[DeckyDecks] Authenticated:', session.userId, 'tier:', thresholdAuth.tier);
+      updateAuthUI();
+    }).catch(err => {
+      console.error('[DeckyDecks] Auth callback failed:', err);
+    });
+  }
+})();
+
+// ---- Auth UI ----
+function updateAuthUI() {
+  const el = document.getElementById('auth-indicator');
+  if (!el) return;
+  const tier = thresholdAuth.tier;
+  if (tier === 'authenticated') {
+    el.innerHTML = `<span class="auth-badge auth-authenticated" title="Logged in via Threshold">⬢ ${thresholdAuth.userId?.slice(0, 8) || 'user'}</span><button class="auth-action" onclick="thresholdAuth.logout(); updateAuthUI();">logout</button>`;
+  } else {
+    el.innerHTML = `<button class="auth-action" onclick="thresholdAuth.startLogin()">Login with Threshold</button>`;
+  }
+}
 
 let _thresholdPushDisabled = false;
 let _thresholdBackoffUntil = 0;
@@ -1335,9 +1481,8 @@ async function thresholdPost(path, body) {
   if (Date.now() < _thresholdBackoffUntil) return null;
 
   try {
-    const res = await fetch(`${THRESHOLD_API}${path}`, {
+    const res = await thresholdAuth.fetch(path, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${THRESHOLD_APP_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(4000),
     });
@@ -1350,7 +1495,7 @@ async function thresholdPost(path, body) {
     // Error contract (matches FlowDJ pattern)
     if ([401, 403, 422].includes(res.status)) {
       _thresholdPushDisabled = true;
-      console.warn(`[Deck Engine] Threshold push disabled: HTTP ${res.status}`);
+      console.warn(`[DeckyDecks] Threshold push disabled: HTTP ${res.status}`);
       return res;
     }
     if (res.status === 429) {
@@ -2852,7 +2997,8 @@ function loadDeckFile(file) {
   reader.readAsText(file);
 }
 
-// Boot: detect local server, check URL params, then launch root deck
+// Boot: init auth UI, detect local server, check URL params, then launch root deck
+updateAuthUI();
 checkLocalServer(); // fire-and-forget, sets _localServerAvailable for gen-apikey skip
 (function boot() {
   const params = new URLSearchParams(window.location.search);
