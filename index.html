@@ -1451,7 +1451,7 @@ const thresholdAuth = {
   if (code) {
     const redirectUri = location.origin + THRESHOLD_CALLBACK_PATH;
     // Clean the URL back to root
-    history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', '/');
     thresholdAuth.handleCallback(code, redirectUri).then(session => {
       console.log('[DeckyDecks] Authenticated:', session.userId, 'tier:', thresholdAuth.tier);
       updateAuthUI();
