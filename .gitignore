@@ -1,0 +1,9 @@
+# Local session/feedback data
+sessions.jsonl
+feedback.jsonl
+
+# OS
+.DS_Store
+
+# Node
+node_modules/

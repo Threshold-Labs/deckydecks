@@ -1,0 +1,235 @@
+{
+  "meta": {
+    "title": "The Way of the Future",
+    "author": "A Recovering Software Maximalist",
+    "startNode": "intro"
+  },
+  "nodes": {
+    "intro": {
+      "type": "hero",
+      "title": "The Way of the Future",
+      "subtitle": "Personalized software that learns from you, networks with people you trust, and actually respects your privacy.\n\n(the way of the future... the way of the future...)",
+      "next": "the-problem"
+    },
+    "the-problem": {
+      "type": "content",
+      "title": "The Current Situation",
+      "body": "<p>Your software knows everything about you. It sells that to advertisers. Your recommendations are \"personalized\" by training on 800M users who are <em>kind of</em> like you.</p><p>Meanwhile: <strong>your friend who has identical taste has recommendations you will never see.</strong></p><p>This is fine. 🐶🔥</p>",
+      "bullets": [
+        "Spotify knows your vibe but can't tell your bestie",
+        "Netflix thinks you and your partner share a personality",
+        "Your data leaves your device and never comes back",
+        "\"Personalization\" = you're a cluster centroid, buddy"
+      ],
+      "next": "branch-tech-stack"
+    },
+    "branch-tech-stack": {
+      "type": "branch",
+      "title": "What's your damage?",
+      "subtitle": "Let's self-select before we go deeper. Where does your brain live?",
+      "branches": [
+        {
+          "label": "Zero-Knowledge Proofs",
+          "desc": "I want to prove I know stuff without revealing stuff",
+          "target": "zkp-deep-dive"
+        },
+        {
+          "label": "UMAP & Embeddings",
+          "desc": "I live in latent space and I'm not coming out",
+          "target": "umap-deep-dive"
+        },
+        {
+          "label": "Attribute-Based Encryption",
+          "desc": "Crypto but make it spicy with trust hierarchies",
+          "target": "mabe-deep-dive"
+        }
+      ]
+    },
+    "zkp-deep-dive": {
+      "type": "content",
+      "title": "Zero-Knowledge Proofs: Trust Me Bro, Cryptographically",
+      "body": "<p>ZKPs let you prove something is true <strong>without revealing why it's true</strong>. It's the cryptographic equivalent of:</p><p><em>\"I know where the party is. No I won't tell you. Yes you're invited. No I can't explain. Just trust.\"</em></p><p>In our system: your software can <strong>prove it shares preferences with someone</strong> without exposing your actual preference graph.</p>",
+      "bullets": [
+        "Prove taste similarity without revealing your embarrassing Nickelback phase",
+        "Verify trust claims across network without a central authority",
+        "Compose proofs: 'Alice trusts Bob who trusts Carol' — fully verifiable",
+        "zk-SNARKs: Groth16 or PLONK, ~100ms proving time on modern hardware"
+      ],
+      "next": "trust-layers"
+    },
+    "umap-deep-dive": {
+      "type": "content",
+      "title": "UMAP: Your Taste Has Coordinates",
+      "body": "<p>Uniform Manifold Approximation and Projection. Takes high-dimensional preference data and finds the <strong>actual geometric structure of your taste</strong>.</p><p>Two people close in UMAP space are genuinely similar — not just \"both watched The Office.\"</p><p>The move: <strong>run UMAP locally</strong>, share only your manifold coordinates, not the raw data.</p>",
+      "bullets": [
+        "Preserves local topology: nearby in space = genuinely similar in taste",
+        "Run on device → coordinates leave, source data stays home",
+        "Add differential privacy noise to exported coordinates",
+        "Cross-domain: music + films + articles → one unified taste manifold"
+      ],
+      "code": "<span class='kw'>import</span> umap\n<span class='cm'># Your preferences, never leaving your machine</span>\nembedder = umap.<span class='fn'>UMAP</span>(n_components=<span class='num'>16</span>, metric=<span class='str'>'cosine'</span>)\ncoords = embedder.<span class='fn'>fit_transform</span>(local_prefs)\n<span class='cm'># Share coordinates, not source data</span>\nnetwork.<span class='fn'>broadcast</span>(coords + <span class='fn'>laplace_noise</span>(epsilon=<span class='num'>0.1</span>))",
+      "next": "trust-layers"
+    },
+    "mabe-deep-dive": {
+      "type": "content",
+      "title": "Multi-Authority ABE: Encryption With an Org Chart",
+      "body": "<p>Normal encryption: you have a key or you don't. Boring. Binary. Boomer.</p><p>Attribute-Based Encryption: <strong>\"decrypt this if you have attributes A and B, but not if you only have A.\"</strong></p><p>Multi-Authority ABE: <strong>multiple independent authorities grant attributes</strong>. No single point of trust. No single point of failure. Very distributed. Much sovereignty.</p>",
+      "bullets": [
+        "\"Decrypt if: (close-friend AND music-taste-similar) OR (family AND location-overlap)\"",
+        "Your doctor, employer, and bestie are all separate authorities",
+        "Revoke access by attribute without re-encrypting your entire history",
+        "No master key exists. Nobody has the whole picture. Not even us."
+      ],
+      "next": "trust-layers"
+    },
+    "trust-layers": {
+      "type": "content",
+      "title": "The Trust Stack",
+      "body": "<p>Three technologies. One goal: <strong>let your software network with the people you actually trust, at the level you actually trust them.</strong></p><p>They were made for each other. Nobody had put them together yet. We're putting them together.</p>",
+      "bullets": [
+        "🔐 ZKPs — prove similarity claims without revealing underlying data",
+        "🗺️  UMAP — locate yourself in shared taste-space, privately",
+        "🏛️  Multi-authority ABE — encrypt content for exactly the right trust tier",
+        "Composed: your software collaborates with your network's software"
+      ],
+      "next": "trust-network"
+    },
+    "trust-network": {
+      "type": "content",
+      "title": "Networked Personalization, Actually",
+      "body": "<p>Imagine: your music app <strong>shares a preference signal</strong> with your friend's music app — not through Spotify's servers, not through anyone's servers — peer to peer, cryptographically scoped to your trust relationship.</p><p>Their app improves because yours knows something. Yours improves because theirs does. <strong>The network gets smarter as a unit.</strong></p><p>This is federated learning but make it personal and actually give you the control.</p>",
+      "bullets": [
+        "Peer-to-peer model updates scoped by trust level",
+        "Close friends: high-fidelity signal sharing",
+        "Acquaintances: aggregated, noisy, still useful",
+        "Strangers: fully homomorphically encrypted vibes only"
+      ],
+      "next": "branch-demo-mode"
+    },
+    "branch-demo-mode": {
+      "type": "branch",
+      "title": "How do you want to see this?",
+      "subtitle": "We can go technical or we can go feelings. No judgment. (Some judgment.)",
+      "branches": [
+        {
+          "label": "Show me the demo",
+          "desc": "I need to see it running or I don't believe you",
+          "target": "demo-live"
+        },
+        {
+          "label": "Walk me through the architecture",
+          "desc": "Explain the system design like I'm a suspicious engineer",
+          "target": "demo-theory"
+        }
+      ]
+    },
+    "demo-live": {
+      "type": "content",
+      "title": "Demo: Two Instances, One Vibe",
+      "body": "<p>Two isolated software instances. They share <strong>nothing</strong> except a trust relationship and a ZK-proven taste similarity.</p><p>Instance A rates three albums. Instance B has rated zero albums. <strong>Instance B now has recommendations.</strong> No server involved. No raw data crossed the wire — only a proof and a coordinate vector.</p><p><em>They're the same picture.</em> No wait, they're not. That's the point.</p>",
+      "bullets": [
+        "Step 1: A generates UMAP embedding from local interaction history",
+        "Step 2: A creates ZK proof that embedding is valid (not adversarial noise)",
+        "Step 3: B verifies proof, updates its local model with A's gradient signal",
+        "Step 4: B recommends something A would have predicted — without knowing A's data"
+      ],
+      "next": "auto-improve"
+    },
+    "demo-theory": {
+      "type": "content",
+      "title": "Architecture: The Paranoid's Dream Stack",
+      "body": "<p>Each node is a <strong>personal software agent</strong> — runs locally, owns its data, exposes only proofs and encrypted signals to the network.</p><p>The network is a <strong>signed directed trust graph</strong>. Edges carry trust-level metadata encrypted under MA-ABE. Nobody can read your edge weights except the named participants.</p>",
+      "bullets": [
+        "Local store: raw preferences — never leaves device",
+        "Proof layer: zk-SNARK circuit over UMAP embedding validity",
+        "Network layer: libp2p gossip, ABE-encrypted payloads",
+        "Learning layer: federated gradient updates, scoped by trust edge weight"
+      ],
+      "code": "<span class='cm'>// Every message in the network looks like this</span>\n{\n  <span class='str'>\"from\"</span>:     <span class='str'>\"[ZK identity — not your name]\"</span>,\n  <span class='str'>\"proof\"</span>:    <span class='str'>\"[I am who I claim, I share what I claim]\"</span>,\n  <span class='str'>\"payload\"</span>:  <span class='str'>\"[ABE-encrypted gradient update]\"</span>,\n  <span class='str'>\"recipients\"</span>: <span class='str'>\"[a policy, not a list]\"</span>\n}",
+      "next": "auto-improve"
+    },
+    "auto-improve": {
+      "type": "content",
+      "title": "Auto-Improving: The Software Gym",
+      "body": "<p>The system doesn't just share recommendations. It <strong>updates its own model</strong> from your network's collective signal.</p><p>Technically: federated gradient descent, but the federation is your personal trust graph — not a corporation's server farm running on your behavioral exhaust.</p><p><em>\"They told me I could become anything. So I became a locally-improving preference model with cryptographic guarantees.\"</em></p>",
+      "bullets": [
+        "Each user interaction → local gradient update",
+        "Trust-weighted aggregation from network neighbors",
+        "Concept drift detection: your taste changes, the model follows",
+        "No catastrophic forgetting — you remain yourself, just better-served"
+      ],
+      "next": "branch-future-vision"
+    },
+    "branch-future-vision": {
+      "type": "branch",
+      "title": "Be honest. How do you feel about this?",
+      "subtitle": "This is a judgment-free zone. (It is not a judgment-free zone.)",
+      "branches": [
+        {
+          "label": "I'm excited, let's build",
+          "desc": "Take my gradients. This is the way.",
+          "target": "optimist-future"
+        },
+        {
+          "label": "I have serious concerns",
+          "desc": "Who watches the watchmen? What about adversarial proofs?",
+          "target": "skeptic-future"
+        }
+      ]
+    },
+    "optimist-future": {
+      "type": "content",
+      "title": "The World Where This Wins",
+      "body": "<p>Software that improves <strong>because of your relationships</strong>, not despite them. Music apps. Reading apps. News feeds. Health trackers. All learning from trust networks rather than anonymous behavioral slurry.</p><p>The surveillance economy breaks down when your data never leaves your device but your preferences still propagate through your social graph — cryptographically, consensually, reversibly.</p>",
+      "bullets": [
+        "Your taste shapes your network's software — mutual benefit, zero extraction",
+        "Small trust networks can out-personalize massive platforms on niche domains",
+        "Communities of interest become self-improving, self-sovereign knowledge graphs",
+        "The protocol is open — run it on anything, trust whoever you choose"
+      ],
+      "next": "convergence-close"
+    },
+    "skeptic-future": {
+      "type": "content",
+      "title": "Your Concerns Are Valid and We Anticipated Them",
+      "body": "<p><strong>\"Adversarial proofs?\"</strong> — The ZK circuit validates the embedding was derived from real interaction data. Poisoning requires compromising your own device first.</p><p><strong>\"What if I trust someone wrong?\"</strong> — Trust is revocable. ABE attribute revocation propagates without re-encrypting history. You can un-trust someone and your model forgets their signal.</p><p><strong>\"Sybil attacks?\"</strong> — Great question. Web-of-trust bootstrapping plus optional proof-of-personhood integration. Working on it. No deck hides everything.</p>",
+      "bullets": [
+        "Adversarial resistance: circuit enforces data provenance at proof time",
+        "Trust revocation: first-class primitive, not a bolt-on afterthought",
+        "Sybil resistance: WoT bootstrapping + optional PoP for high-stakes edges",
+        "Open source: if you don't trust us, read the circuit constraints yourself"
+      ],
+      "next": "convergence-close"
+    },
+    "convergence-close": {
+      "type": "content",
+      "title": "Where We Actually Are",
+      "body": "<p>Research prototype. The primitives are real and proven individually. The gap is <strong>composition</strong> — making them work together at consumer speed and scale.</p><p>That's the interesting problem. That's what we're working on. Surprised Pikachu face if it were easy.</p>",
+      "bullets": [
+        "UMAP ✅ — ships in production today",
+        "zk-SNARKs ✅ — Groth16 proving ~100ms on modern hardware (see Zcash, Aztec)",
+        "MA-ABE ⚠️ — fast enough for hourly syncs, not yet real-time",
+        "Full composition 🔨 — that's the research gap we're closing"
+      ],
+      "next": "vision-statement"
+    },
+    "vision-statement": {
+      "type": "content",
+      "title": "The Bet",
+      "body": "<p>Current model: <strong>your data feeds someone else's model</strong>. You get marginally better recommendations. They get a moat and a valuation.</p><p>Proposed model: <strong>your data feeds your model, which shares signals with people you trust</strong>. Everyone in your network gets better recommendations. Nobody builds a moat from your behavior.</p><p>Same math. Different who benefits. Different power structure falls out of the data flow.</p>",
+      "bullets": [
+        "Centralized personalization → platform capture, behavioral lock-in",
+        "Trust-network personalization → distributed sovereignty, mutual benefit",
+        "The technology is not the hard part — the defaults are",
+        "The way of the future... the way of the future..."
+      ],
+      "next": "outro"
+    },
+    "outro": {
+      "type": "hero",
+      "title": "The Way of the Future",
+      "subtitle": "Build software that belongs to you.\nShare it with people you trust.\nProve everything. Reveal nothing.\n\ngithub.com/[redacted-until-we-ship-the-ABE-layer]",
+      "next": null
+    }
+  }
+}

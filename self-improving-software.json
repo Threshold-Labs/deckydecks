@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "title": "Self-Improving Software",
+    "author": "deck-engine",
+    "startNode": "opening-hero"
+  },
+  "nodes": {
+    "opening-hero": {
+      "type": "hero",
+      "title": "Self-Improving Software",
+      "subtitle": "How recursion and dogfooding collapse the complexity of building tools that build themselves",
+      "next": "what-is-self-improving"
+    },
+    "what-is-self-improving": {
+      "type": "content",
+      "title": "The Pattern You've Already Seen",
+      "body": "<p>A compiler written in the language it compiles. A linter that follows its own rules. A deck generator that was designed using the decks it generates.</p><p>Self-improving software isn't magic — it's the deliberate application of <strong>two old ideas</strong> to the same problem at the same time:</p>",
+      "bullets": [
+        "Recursion — the system operates on itself",
+        "Dogfooding — the builder is also the user",
+        "Together: the feedback loop closes, and complexity collapses"
+      ],
+      "next": "relationship-branch"
+    },
+    "relationship-branch": {
+      "type": "branch",
+      "title": "How do you relate to the tools you build?",
+      "subtitle": "Pick the path that fits your context — they all converge.",
+      "branches": [
+        {
+          "label": "I use my own tools daily",
+          "desc": "Dogfooding is already part of my workflow",
+          "target": "dogfooder-path"
+        },
+        {
+          "label": "I build for other people",
+          "desc": "My users aren't me — feedback comes from outside",
+          "target": "user-builder-path"
+        },
+        {
+          "label": "I think in systems and abstractions",
+          "desc": "I want the theoretical lens first",
+          "target": "systems-thinker-path"
+        }
+      ]
+    },
+    "dogfooder-path": {
+      "type": "content",
+      "title": "You Already Have the Tightest Loop",
+      "body": "<p>When you use your own tool every day, latency-to-feedback approaches zero. You <em>feel</em> the rough edges before you consciously notice them.</p><p>The strategy: <strong>make your tool a dependency of the workflow that produces the tool.</strong> Not just as a test — as a hard dependency that breaks your build if the tool regresses.</p>",
+      "bullets": [
+        "Use the tool in its own CI pipeline",
+        "Write your documentation with the tool",
+        "The tool must process itself to ship"
+      ],
+      "next": "recursive-loop"
+    },
+    "user-builder-path": {
+      "type": "content",
+      "title": "Close the Loop Artificially",
+      "body": "<p>If you're not your own user, you can still create a recursive structure. The trick: <strong>build the scaffolding that generates the inputs your tool consumes.</strong></p><p>Now the scaffolding tool and the core tool improve each other. You've synthetic-dogfooded your way into a self-referential system.</p>",
+      "bullets": [
+        "Build a fixture generator — then improve it with the main tool",
+        "Use your own API to write your own docs",
+        "Your onboarding flow is a test of your own product"
+      ],
+      "next": "recursive-loop"
+    },
+    "systems-thinker-path": {
+      "type": "content",
+      "title": "Fixed Points and Strange Loops",
+      "body": "<p>In math, a <strong>fixed point</strong> is where <em>f(x) = x</em> — the function applied to itself produces itself. Self-improving systems aim for this: the tool's output, when fed back in, improves the tool.</p><p>Hofstadter called these <em>strange loops</em>. They feel like magic, but they're just well-placed feedback with delayed evaluation.</p>",
+      "code": "<span class='cm'>// The ideal self-improving function</span>\n<span class='kw'>function</span> <span class='fn'>improve</span>(tool) {\n  <span class='kw'>const</span> output = tool.<span class='fn'>run</span>(tool.<span class='fn'>source</span>());\n  <span class='kw'>return</span> tool.<span class='fn'>applyPatch</span>(output);\n  <span class='cm'>// f(f) → better f</span>\n}",
+      "next": "recursive-loop"
+    },
+    "recursive-loop": {
+      "type": "content",
+      "title": "The Loop That Collapses Complexity",
+      "body": "<p>Here's why this works at scale: <strong>every improvement to the tool improves the tool's ability to improve itself.</strong> You get compounding returns without compounding code.</p><p>Traditional software growth: more features → more surface area → more maintenance. Recursive growth: more capability → better outputs → outputs improve inputs → tighter loop.</p>",
+      "bullets": [
+        "Complexity is paid once, at the abstraction layer",
+        "New capability comes from the tool using itself in new ways",
+        "Maintenance burden shrinks as the tool learns its own shape"
+      ],
+      "next": "this-deck-meta"
+    },
+    "this-deck-meta": {
+      "type": "content",
+      "title": "This Talk Is the Example",
+      "body": "<p>The deck you're watching was generated by <code>deck-engine</code> — a branching presentation tool. The CLI that generates decks was designed by giving Claude a deck about how the CLI works.</p><p>The generator improved every time it was used to explain the generator. No separate test suite. No synthetic fixtures. <strong>The tool was the test.</strong></p>",
+      "bullets": [
+        "deck generate README.md → draft deck spec",
+        "Present the deck → notice gaps",
+        "deck refine deck.json \"add a branch for X\" → close the gap",
+        "The README improves. The prompt improves. The output improves."
+      ],
+      "next": "hard-parts-branch"
+    },
+    "hard-parts-branch": {
+      "type": "branch",
+      "title": "What's the hardest part for you?",
+      "subtitle": "Both paths lead to the same practical patterns.",
+      "branches": [
+        {
+          "label": "Getting the first loop started",
+          "desc": "Bootstrapping feels circular — what comes first?",
+          "target": "bootstrap-path"
+        },
+        {
+          "label": "Knowing when to stop iterating",
+          "desc": "How do you avoid infinite regress or scope creep?",
+          "target": "termination-path"
+        }
+      ]
+    },
+    "bootstrap-path": {
+      "type": "content",
+      "title": "Bootstrapping: Cheat on the First Generation",
+      "body": "<p>The first version doesn't need to be self-produced. It just needs to be <em>good enough to produce something you can critique.</em></p><p>Write v0 by hand. Use it once, on itself, even if the result is bad. Now you have a real input and a real output — the loop has started. Every subsequent version is recursive.</p>",
+      "bullets": [
+        "Hand-write v0 — don't over-engineer it",
+        "Run v0 on its own source or docs immediately",
+        "Treat the bad output as the first bug report",
+        "v1 is the first self-produced artifact"
+      ],
+      "next": "practical-patterns"
+    },
+    "termination-path": {
+      "type": "content",
+      "title": "Termination: Ship the Fixed Point",
+      "body": "<p>Infinite loops are bugs. Recursive improvement needs a <strong>termination condition</strong>. The right one: <em>does another pass through the tool produce a meaningfully different result?</em></p><p>When the tool's output on itself stabilizes, you've reached the fixed point. Ship it. Resume when the domain changes.</p>",
+      "bullets": [
+        "Diff the output of two consecutive passes",
+        "If delta < threshold: you've converged",
+        "Resume iteration only when inputs change (new feature, new audience)",
+        "Stability is a feature, not stagnation"
+      ],
+      "next": "practical-patterns"
+    },
+    "practical-patterns": {
+      "type": "content",
+      "title": "Three Patterns to Steal Today",
+      "body": "<p>These work regardless of stack, language, or team size:</p>",
+      "bullets": [
+        "Pattern 1 — Use your tool in its own README generation. If it can't explain itself, it's not ready.",
+        "Pattern 2 — Pipe your tool's output back as its own input. Any breakage is a regression test you didn't have to write.",
+        "Pattern 3 — Write your tool's prompt or config using the tool. The meta-document becomes the canonical integration test."
+      ],
+      "next": "getting-started"
+    },
+    "getting-started": {
+      "type": "content",
+      "title": "The Three-Step Starter",
+      "body": "<p>You don't need a grand design. You need a first loop.</p>",
+      "bullets": [
+        "Step 1: Build something small that solves your own problem",
+        "Step 2: Use it to produce one artifact related to itself (docs, config, test data)",
+        "Step 3: Use that artifact to improve the tool — then repeat from step 2"
+      ],
+      "code": "<span class='cm'># This is the whole methodology</span>\n<span class='kw'>while</span> <span class='fn'>tool_can_improve</span>():\n    artifact = tool.<span class='fn'>run</span>(tool.<span class='fn'>self_description</span>())\n    tool = tool.<span class='fn'>apply</span>(artifact)\n    <span class='fn'>ship</span>(tool)",
+      "next": "closing-hero"
+    },
+    "closing-hero": {
+      "type": "hero",
+      "title": "Build the tool. Use the tool. Improve the tool.",
+      "subtitle": "Recursion isn't a technique — it's a relationship between a builder and their work. Dogfooding closes the loop. Together, they make complexity compound in your favor.",
+      "next": null
+    }
+  }
+}

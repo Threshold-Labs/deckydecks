@@ -1,0 +1,470 @@
+#!/usr/bin/env bash
+# deck — CLI for generating and refining branching deck specs
+# Uses claude code CLI (claude -p) with Sonnet for fast, scoped edits
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODEL="sonnet"
+
+# The deck spec format documentation, embedded as a heredoc
+read -r -d '' SPEC_DOCS << 'SPEC_EOF' || true
+DECK SPEC FORMAT:
+A JSON object with "meta" and "nodes" keys.
+
+meta: { title: string, author: string, startNode: string }
+
+nodes: object keyed by node ID (kebab-case), each node has:
+  - type: "hero" | "content" | "branch"
+  - title: string (required)
+  - subtitle: string (for hero and branch types)
+  - body: string with inline HTML (for content type, supports <p>, <strong>, <em>)
+  - bullets: string[] (for content type, optional)
+  - code: string (for content type, optional — HTML with syntax highlight spans)
+  - next: string | null (node ID for linear navigation, null for final slide)
+  - branches: array of { label: string, desc: string, target: string } (for branch type only)
+
+RULES:
+- Every path through the graph must eventually reach a node with "next": null
+- All branch targets must point to valid node IDs
+- Branch nodes use "branches" array, NOT "next"
+- Linear/hero/content nodes use "next", NOT "branches"
+- Include 2-3 branch points for audience self-selection
+- All branches should converge back to shared nodes (no orphaned dead ends)
+- Start with a hero slide, end with a hero slide
+- Node IDs should be kebab-case descriptive names (e.g., "tech-deep-dive", "roi-path")
+- Body text uses HTML: wrap paragraphs in <p> tags, use <strong> and <em> for emphasis
+SPEC_EOF
+
+usage() {
+  cat << 'EOF'
+deck — Generate and refine branching presentation decks
+
+USAGE:
+  deck generate <source> [options]     Generate a new deck from a source
+  deck refine <file> "<instruction>"   Refine an existing deck with Claude
+  deck validate <file>                 Validate a deck spec
+  deck serve [file]                    Open deck in browser
+  deck help                            Show this help
+
+GENERATE OPTIONS:
+  <source>              GitHub URL, file path, or "-" for stdin
+  --audience <type>     technical | business | mixed (default: mixed)
+  --goal <type>         pitch | demo | explain (default: explain)
+  --depth <type>        quick | standard | deep (default: standard)
+  --output <file>       Output file (default: deck.json)
+  --title <title>       Deck title (auto-detected if not set)
+
+EXAMPLES:
+  deck generate https://github.com/owner/repo
+  deck generate README.md --audience technical --goal pitch
+  deck generate - --title "My Product" < notes.md
+  deck refine deck.json "make the opening more compelling"
+  deck refine deck.json "add a branch for enterprise vs startup audiences"
+  deck serve deck.json
+EOF
+}
+
+# Validate a deck spec JSON file
+validate_deck() {
+  local file="$1"
+
+  if [ ! -f "$file" ]; then
+    echo "Error: File not found: $file" >&2
+    return 1
+  fi
+
+  # Use claude to validate since jq might not be available everywhere
+  # But try jq first for speed
+  if command -v jq &>/dev/null; then
+    # Check basic structure
+    local has_meta has_nodes start_node
+    has_meta=$(jq 'has("meta")' "$file" 2>/dev/null) || { echo "Error: Invalid JSON" >&2; return 1; }
+    has_nodes=$(jq 'has("nodes")' "$file" 2>/dev/null)
+
+    if [ "$has_meta" != "true" ] || [ "$has_nodes" != "true" ]; then
+      echo "Error: Deck must have 'meta' and 'nodes' keys" >&2
+      return 1
+    fi
+
+    start_node=$(jq -r '.meta.startNode' "$file")
+    has_start=$(jq --arg sn "$start_node" 'has($sn)' "$file" 2>/dev/null <<< "$(jq '.nodes' "$file")")
+
+    if [ "$has_start" != "true" ]; then
+      echo "Error: startNode '$start_node' not found in nodes" >&2
+      return 1
+    fi
+
+    local node_count
+    node_count=$(jq '.nodes | length' "$file")
+    local branch_count
+    branch_count=$(jq '[.nodes[] | select(.type == "branch")] | length' "$file")
+
+    echo "Valid deck: $node_count nodes, $branch_count branch points"
+
+    # Check for orphaned nodes (nodes that nothing points to except startNode)
+    echo "  Start: $start_node"
+    echo "  Nodes: $(jq -r '.nodes | keys | join(", ")' "$file")"
+
+    return 0
+  else
+    # Fallback: just check it's valid JSON with meta and nodes
+    if python3 -c "import json; d=json.load(open('$file')); assert 'meta' in d and 'nodes' in d" 2>/dev/null; then
+      echo "Valid JSON with meta and nodes (install jq for deeper validation)"
+      return 0
+    else
+      echo "Error: Invalid deck spec" >&2
+      return 1
+    fi
+  fi
+}
+
+# Fetch content from a GitHub URL
+fetch_github() {
+  local url="$1"
+  local owner repo
+
+  # Parse owner/repo from URL
+  if [[ "$url" =~ github\.com/([^/]+)/([^/\?#]+) ]]; then
+    owner="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    repo="${repo%.git}"
+  else
+    echo "Error: Invalid GitHub URL" >&2
+    return 1
+  fi
+
+  echo "Fetching content from $owner/$repo..." >&2
+
+  local content=""
+
+  # Fetch README
+  local readme=""
+  for branch in main master; do
+    readme=$(curl -sf "https://raw.githubusercontent.com/$owner/$repo/$branch/README.md" 2>/dev/null) && break
+  done
+
+  # Fetch repo metadata
+  local meta_json
+  meta_json=$(curl -sf "https://api.github.com/repos/$owner/$repo" 2>/dev/null) || meta_json="{}"
+
+  local description language stars
+  description=$(echo "$meta_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('description',''))" 2>/dev/null) || description=""
+  language=$(echo "$meta_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('language',''))" 2>/dev/null) || language=""
+  stars=$(echo "$meta_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('stargazers_count',0))" 2>/dev/null) || stars="0"
+
+  # Fetch file tree
+  local tree_json
+  tree_json=$(curl -sf "https://api.github.com/repos/$owner/$repo/contents/" 2>/dev/null) || tree_json="[]"
+  local file_tree
+  file_tree=$(echo "$tree_json" | python3 -c "
+import sys, json
+try:
+    items = json.load(sys.stdin)
+    for item in items:
+        prefix = 'DIR' if item.get('type') == 'dir' else 'FILE'
+        print(f\"{prefix} {item['name']}\")
+except: pass
+" 2>/dev/null) || file_tree=""
+
+  # Compose content
+  content="Repository: $owner/$repo"
+  [ -n "$description" ] && content="$content\nDescription: $description"
+  [ -n "$language" ] && content="$content\nLanguage: $language"
+  [ "$stars" != "0" ] && content="$content\nStars: $stars"
+  [ -n "$file_tree" ] && content="$content\n\nFile structure:\n$file_tree"
+  [ -n "$readme" ] && content="$content\n\nREADME:\n${readme:0:8000}"
+
+  echo -e "$content"
+}
+
+# Generate a deck from source content
+cmd_generate() {
+  local source=""
+  local audience="mixed"
+  local goal="explain"
+  local depth="standard"
+  local output="deck.json"
+  local title=""
+
+  # Parse args
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --audience) audience="$2"; shift 2 ;;
+      --goal) goal="$2"; shift 2 ;;
+      --depth) depth="$2"; shift 2 ;;
+      --output) output="$2"; shift 2 ;;
+      --title) title="$2"; shift 2 ;;
+      -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+      *) source="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$source" ]; then
+    echo "Error: Source is required (GitHub URL, file path, or - for stdin)" >&2
+    usage
+    exit 1
+  fi
+
+  local slide_count
+  case "$depth" in
+    quick) slide_count="5-8" ;;
+    standard) slide_count="10-15" ;;
+    deep) slide_count="18-25" ;;
+    *) slide_count="10-15" ;;
+  esac
+
+  # Fetch/read source content
+  local content=""
+  if [[ "$source" == -* ]] && [ "$source" = "-" ]; then
+    echo "Reading from stdin..." >&2
+    content=$(cat)
+  elif [[ "$source" == http* ]] && [[ "$source" == *github.com* ]]; then
+    content=$(fetch_github "$source")
+  elif [ -f "$source" ]; then
+    echo "Reading file: $source" >&2
+    content=$(cat "$source")
+  else
+    echo "Error: Source not found: $source" >&2
+    exit 1
+  fi
+
+  if [ -z "$content" ]; then
+    echo "Error: No content could be extracted from source" >&2
+    exit 1
+  fi
+
+  echo "Generating deck (audience: $audience, goal: $goal, depth: $depth)..." >&2
+
+  local title_instruction=""
+  if [ -n "$title" ]; then
+    title_instruction="- The deck title should be: $title"
+  fi
+
+  # Build prompt and pipe to claude
+  local prompt
+  prompt="You are a presentation designer. Generate a branching deck spec as valid JSON.
+
+$SPEC_DOCS
+
+REQUIREMENTS:
+- Audience: $audience
+- Goal: $goal
+- Target slide count: $slide_count (including branch variants)
+$title_instruction
+- Include 2-3 branch points where the audience can self-select their path
+- Make branch questions feel like genuine moments of audience engagement, not just routing
+- All branches should converge back to shared closing slides
+- Start with a compelling hero slide that hooks attention
+- End with a strong closing hero slide
+- Content should be insightful and specific, not generic
+
+CRITICAL — BRANCH DIVERGENCE:
+Each branch path MUST lead to genuinely different content, not the same ideas with different framing.
+- Bad: Branch 'Technical' vs 'Business' → both explain the same features with different words
+- Good: Branch 'Technical' → shows architecture, code, system design. 'Business' → shows market, ROI, competitive landscape. Completely different slides.
+- Each branch path should have 2-4 unique nodes before converging. One shared bridge node is not enough.
+- Branch labels should represent real audience self-selection: 'I build things' vs 'I buy things' vs 'I invest in things' — not 'Learn more' vs 'See details'
+- The convergence point should synthesize insights from all paths, not repeat what any single path said
+
+SOURCE CONTENT:
+$content
+
+Output ONLY the valid JSON deck spec. No markdown fences. No explanation. No trailing commas. Ensure all branch targets reference valid node IDs."
+
+  # Run claude -p with sonnet
+  local result
+  echo "Running claude -p..." >&2
+  result=$(echo "$prompt" | claude -p --model "$MODEL" 2>&1) || true
+
+  if [ -z "$result" ]; then
+    echo "Error: Claude returned empty response" >&2
+    exit 1
+  fi
+
+  # Extract JSON if wrapped in code fences
+  local json_result
+  json_result=$(echo "$result" | python3 -c "
+import sys, json, re
+text = sys.stdin.read()
+# Try direct parse
+try:
+    obj = json.loads(text)
+    print(json.dumps(obj, indent=2))
+    sys.exit(0)
+except: pass
+# Try extracting from markdown fence
+match = re.search(r'\`\`\`(?:json)?\s*(.*?)\`\`\`', text, re.DOTALL)
+if match:
+    try:
+        obj = json.loads(match.group(1))
+        print(json.dumps(obj, indent=2))
+        sys.exit(0)
+    except: pass
+# Try finding first { to last }
+first_brace = text.find('{')
+last_brace = text.rfind('}')
+if first_brace >= 0 and last_brace > first_brace:
+    try:
+        obj = json.loads(text[first_brace:last_brace+1])
+        print(json.dumps(obj, indent=2))
+        sys.exit(0)
+    except: pass
+print('PARSE_ERROR', file=sys.stderr)
+sys.exit(1)
+" 2>/dev/null)
+
+  if [ $? -ne 0 ] || [ -z "$json_result" ]; then
+    echo "Error: Could not parse JSON from Claude's response" >&2
+    echo "Raw response saved to deck-raw.txt" >&2
+    echo "$result" > deck-raw.txt
+    exit 1
+  fi
+
+  # Write output
+  echo "$json_result" > "$output"
+  echo "Deck generated: $output" >&2
+  validate_deck "$output"
+}
+
+# Refine an existing deck
+cmd_refine() {
+  local file="$1"
+  local instruction="$2"
+
+  if [ ! -f "$file" ]; then
+    echo "Error: File not found: $file" >&2
+    exit 1
+  fi
+
+  if [ -z "$instruction" ]; then
+    echo "Error: Refinement instruction is required" >&2
+    echo "Usage: deck refine <file> \"<instruction>\"" >&2
+    exit 1
+  fi
+
+  local current_spec
+  current_spec=$(cat "$file")
+
+  echo "Refining deck: $instruction" >&2
+
+  local prompt
+  prompt="You are refining a branching presentation deck spec. Here is the current spec:
+
+\`\`\`json
+$current_spec
+\`\`\`
+
+$SPEC_DOCS
+
+INSTRUCTION:
+$instruction
+
+RULES:
+- Preserve the overall structure unless the instruction specifically asks to change it
+- All branch targets must point to valid node IDs
+- All paths must converge (no dead ends except the final node)
+- Keep the same startNode unless instructed otherwise
+- Maintain the quality and specificity of the content
+
+Output ONLY the complete updated JSON deck spec. No markdown fences. No explanation."
+
+  local result
+  echo "Running claude -p..." >&2
+  result=$(echo "$prompt" | claude -p --model "$MODEL" 2>&1) || true
+
+  if [ -z "$result" ]; then
+    echo "Error: Claude returned empty response" >&2
+    exit 1
+  fi
+
+  # Parse JSON
+  local json_result
+  json_result=$(echo "$result" | python3 -c "
+import sys, json, re
+text = sys.stdin.read()
+try:
+    obj = json.loads(text)
+    print(json.dumps(obj, indent=2))
+    sys.exit(0)
+except: pass
+match = re.search(r'\`\`\`(?:json)?\s*(.*?)\`\`\`', text, re.DOTALL)
+if match:
+    try:
+        obj = json.loads(match.group(1))
+        print(json.dumps(obj, indent=2))
+        sys.exit(0)
+    except: pass
+first_brace = text.find('{')
+last_brace = text.rfind('}')
+if first_brace >= 0 and last_brace > first_brace:
+    try:
+        obj = json.loads(text[first_brace:last_brace+1])
+        print(json.dumps(obj, indent=2))
+        sys.exit(0)
+    except: pass
+print('PARSE_ERROR', file=sys.stderr)
+sys.exit(1)
+" 2>/dev/null)
+
+  if [ $? -ne 0 ] || [ -z "$json_result" ]; then
+    echo "Error: Could not parse JSON from Claude's response" >&2
+    echo "Raw response saved to deck-raw.txt" >&2
+    echo "$result" > deck-raw.txt
+    exit 1
+  fi
+
+  # Backup original
+  cp "$file" "${file%.json}.backup.json"
+  echo "  Backup: ${file%.json}.backup.json" >&2
+
+  # Write refined spec
+  echo "$json_result" > "$file"
+  echo "Deck refined: $file" >&2
+  validate_deck "$file"
+}
+
+# Open deck in browser
+cmd_serve() {
+  local deck_file="${1:-}"
+  local html_file="$SCRIPT_DIR/index.html"
+
+  if [ ! -f "$html_file" ]; then
+    echo "Error: index.html not found in $SCRIPT_DIR" >&2
+    exit 1
+  fi
+
+  if [ -n "$deck_file" ]; then
+    # Open with deck parameter
+    local abs_path
+    abs_path=$(cd "$(dirname "$deck_file")" && pwd)/$(basename "$deck_file")
+    echo "Opening deck: $abs_path" >&2
+    echo "Note: Due to browser security, you may need to use a local server." >&2
+    echo "Try: cd '$SCRIPT_DIR' && python3 -m http.server 8090" >&2
+    echo "Then open: http://localhost:8090/index.html?deck=$(basename "$deck_file")" >&2
+
+    # Copy deck file to script dir if not already there
+    if [ "$(cd "$(dirname "$deck_file")" && pwd)" != "$SCRIPT_DIR" ]; then
+      cp "$deck_file" "$SCRIPT_DIR/"
+      echo "  Copied $(basename "$deck_file") to $SCRIPT_DIR/" >&2
+    fi
+  fi
+
+  open "$html_file"
+}
+
+# Main dispatch
+case "${1:-help}" in
+  generate) shift; cmd_generate "$@" ;;
+  refine)
+    if [ $# -lt 3 ]; then
+      echo "Usage: deck refine <file> \"<instruction>\"" >&2
+      exit 1
+    fi
+    cmd_refine "$2" "$3"
+    ;;
+  validate) validate_deck "${2:-}" ;;
+  serve) cmd_serve "${2:-}" ;;
+  help|--help|-h) usage ;;
+  *) echo "Unknown command: $1" >&2; usage; exit 1 ;;
+esac
