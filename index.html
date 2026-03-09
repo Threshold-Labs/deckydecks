@@ -1051,16 +1051,35 @@ body::before {
 
 /* ---- RESPONSIVE ---- */
 @media (max-width: 768px) {
-  .slide { padding: clamp(1.5rem, 4vw, 3rem); padding-bottom: calc(clamp(1.5rem, 4vw, 3rem) + env(safe-area-inset-bottom, 0px)); }
+  .slide {
+    padding: clamp(1.5rem, 4vw, 3rem);
+    padding-top: calc(60px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    justify-content: flex-start;
+  }
+  .slide.type-hero { justify-content: center; }
   .branch-options { gap: 0.75rem; }
   .branch-option { padding: 1.2rem 1.5rem; }
   .chart-bar-label { width: 70px; font-size: 0.85rem; }
   .chart-bar-track { height: 28px; }
   .chart-scorecard { gap: 0.75rem; }
   .scorecard-card { padding: 1.25rem 1rem; }
+  .chart-comparison { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .chart-comparison th, .chart-comparison td { padding: 0.6rem 0.6rem; font-size: 0.8rem; white-space: nowrap; }
+  .chart-comparison th:first-child, .chart-comparison td:first-child {
+    white-space: normal; min-width: 110px; max-width: 140px;
+    position: sticky; left: 0; z-index: 2;
+    background: var(--bg-primary);
+  }
+  .chart-comparison tr:nth-child(even) td:first-child { background: var(--bg-surface); }
+  .chart-comparison tr.row-highlight td:first-child { background: var(--accent-bg-subtle); }
   #nav-hints { display: none; }
   #analytics-overlay { width: 280px; top: 1rem; right: 1rem; }
   #back-btn { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+  #path-indicator { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 4px 10px; gap: 4px; }
+  #auth-indicator { top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px; font-size: 0.65rem; }
+  .auth-badge { padding: 3px 8px; }
+  .auth-action { padding: 3px 8px; font-size: 0.6rem; }
   .input-slider-track input[type="range"]::-webkit-slider-thumb { width: 44px; height: 44px; margin-top: -19px; }
   .input-slider-track input[type="range"]::-moz-range-thumb { width: 44px; height: 44px; }
   .slide-input, .feedback-textarea { font-size: 16px; }

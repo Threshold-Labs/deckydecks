@@ -11,6 +11,9 @@ feedback.jsonl
 # Node
 node_modules/
 
+# Local deck cache
+decks/
+
 # Deploy artifacts
 .deploy/
 .deploy-ddd/

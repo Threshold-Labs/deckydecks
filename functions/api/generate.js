@@ -81,17 +81,47 @@ async function fetchGitHubContent(repoUrl) {
   return parts.join('\n');
 }
 
+function formatInterestData(interests) {
+  if (!interests || !Array.isArray(interests) || interests.length === 0) return '';
+
+  const lines = ['AUDIENCE INTEREST DATA (from the creator\'s trust graph):'];
+  lines.push('Use this to personalize the deck — reference people by name, weave in their interests, suggest collaboration angles.\n');
+
+  for (const person of interests.slice(0, 10)) {
+    const name = person.displayName || person.personId;
+    const topics = (person.topInterests || []).slice(0, 5).join(', ');
+    const groups = (person.groups || []).slice(0, 3).join(', ');
+    if (topics) {
+      lines.push(`- ${name}: interests in ${topics}${groups ? ` (active in: ${groups})` : ''}`);
+    }
+  }
+
+  // Add similarity pairs if present
+  if (interests._similarities && interests._similarities.length > 0) {
+    lines.push('\nPeople with overlapping interests (potential collaborators):');
+    for (const sim of interests._similarities.slice(0, 5)) {
+      const shared = (sim.sharedInterests || []).slice(0, 3).join(', ');
+      lines.push(`- ${sim.personAId} ↔ ${sim.personBId}: ${shared} (similarity: ${(sim.similarity * 100).toFixed(0)}%)`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 function buildGeneratePrompt(sourceContent, ctx) {
   const slideCount = { quick: '5-8', standard: '10-15', deep: '18-25' }[ctx.depth] || '10-15';
   const titleLine = ctx.title ? `- The deck title should be: ${ctx.title}` : '';
   const themeLine = ctx.theme && ctx.theme !== 'dark' ? `- Set meta.theme to "${ctx.theme}"` : '';
 
   // Build creative direction from dynamic wizard answers (replaces static audience/goal)
-  const skipKeys = new Set(['source', 'repoUrl', 'pastedContent', 'sourceContent', 'depth', 'theme', 'title', 'apiKey']);
+  const skipKeys = new Set(['source', 'repoUrl', 'pastedContent', 'sourceContent', 'depth', 'theme', 'title', 'apiKey', 'thresholdToken', 'interests']);
   const creativeDirection = Object.entries(ctx)
     .filter(([k, v]) => !skipKeys.has(k) && typeof v === 'string' && v.length > 0)
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
+
+  // Interest-graph personalization
+  const interestBlock = formatInterestData(ctx.interests);
 
   return `You are a presentation designer. Generate a branching deck spec as valid JSON.
 
@@ -102,7 +132,7 @@ REQUIREMENTS:
 ${titleLine}
 ${themeLine}
 ${creativeDirection ? `\nCREATIVE DIRECTION (from the user's choices):\n${creativeDirection}\nUse these to shape the narrative angle, tone, emphasis, and structure of the deck.\n` : ''}
-- Include 2-3 branch points where the audience can self-select their path
+${interestBlock ? `\n${interestBlock}\n` : ''}- Include 2-3 branch points where the audience can self-select their path
 - Make branch questions feel like genuine moments of audience engagement
 - All branches should converge back to shared closing slides
 - Start with a compelling hero slide that hooks attention
@@ -132,9 +162,24 @@ function extractJson(text) {
   const first = text.indexOf('{');
   const last = text.lastIndexOf('}');
   if (first >= 0 && last > first) {
-    try { return JSON.parse(text.substring(first, last + 1)); } catch {}
+    const candidate = text.substring(first, last + 1);
+    try { return JSON.parse(candidate); } catch {}
+    // Try fixing common JSON issues: trailing commas before } or ]
+    const cleaned = candidate
+      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+    try { return JSON.parse(cleaned); } catch {}
+    // One more: the newline escaping above is too aggressive for already-valid strings
+    // Try just trailing comma fix
+    const commaFixed = candidate.replace(/,\s*([}\]])/g, '$1');
+    try { return JSON.parse(commaFixed); } catch (e) {
+      console.log('[generate] JSON parse failed after cleanup:', e.message);
+      console.log('[generate] First 500 chars:', candidate.substring(0, 500));
+    }
   }
-  throw new Error('Could not parse JSON from Claude response');
+  throw new Error(`Could not parse JSON from Claude response (length: ${text.length}, starts: ${text.substring(0, 100)})`);
 }
 
 function validateDeck(deck) {
@@ -220,7 +265,7 @@ async function callClaude(apiKey, prompt) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -255,6 +300,30 @@ export async function onRequestPost({ request, env }) {
 
     if (!sourceContent) {
       return Response.json({ error: 'No source content provided' }, { status: 400 });
+    }
+
+    // Optionally fetch interest-graph data from Threshold trust graph
+    if (ctx.thresholdToken && !ctx.interests) {
+      try {
+        const capsRes = await fetch('https://thresholdlabs.io/api/apps/deckydecks/capabilities', {
+          headers: { Authorization: `Bearer ${ctx.thresholdToken}` },
+        });
+        if (capsRes.ok) {
+          const caps = await capsRes.json();
+          const hasInterest = Array.isArray(caps) && caps.some(c => c.capability_id === 'interest-graph');
+          if (hasInterest) {
+            const graphRes = await fetch('https://thresholdlabs.io/api/capabilities/interest-graph/data', {
+              headers: { Authorization: `Bearer ${ctx.thresholdToken}` },
+            });
+            if (graphRes.ok) {
+              ctx.interests = await graphRes.json();
+              console.log('[generate] Injected interest-graph data for personalization');
+            }
+          }
+        }
+      } catch (err) {
+        console.log('[generate] Interest-graph fetch failed (non-blocking):', err.message);
+      }
     }
 
     const prompt = buildGeneratePrompt(sourceContent, ctx);

@@ -78,6 +78,19 @@ Three ways to load a deck JSON into the browser engine:
 
 The analytics overlay includes an "Export Deck JSON" button to download the current deck spec, and a CLI hint showing the refine command.
 
+### Threshold Capability Integration
+
+DeckyDecks composes the `interest-graph` capability via the Threshold trust graph. When a user is authenticated with Threshold, deck generation is personalized using their interest-graph data.
+
+**Flow**: Client passes `thresholdToken` in generate request → `generate.js` fetches interest-graph data from Threshold API → interest data injected into Claude prompt as audience context → deck references real people, interests, and collaboration opportunities.
+
+**Endpoints**:
+- `GET /api/capabilities?token=<jwt>` — Check if interest-graph is available for this user
+- `POST /api/generate` — Accepts optional `thresholdToken` field; auto-fetches interest data
+
+**Capability composition** (registered in `threshold-capabilities/register.ts`):
+- `deckydecks` ← `interest-graph` (role: audience personalization)
+
 ### Future
 
 - Presenter mode with notes
