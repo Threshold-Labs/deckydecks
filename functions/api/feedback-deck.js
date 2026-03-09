@@ -2,6 +2,32 @@ function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+function decomposeFeedback(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  // Split on paragraph breaks first
+  let chunks = text.split(/\n\n+/);
+
+  // Further split each chunk on list markers and numbered lists
+  let pieces = [];
+  for (const chunk of chunks) {
+    const subParts = chunk.split(/\n\s*[-*]\s+|\n\s*\d+[.)]\s+/);
+    pieces.push(...subParts);
+  }
+
+  // Further split on sentence boundaries (". ", "! ") but not abbreviations
+  let sentences = [];
+  for (const piece of pieces) {
+    const parts = piece.split(/(?<=[.!])\s+/);
+    sentences.push(...parts);
+  }
+
+  // Clean up and filter short fragments
+  return sentences
+    .map(s => s.replace(/^[-*•]\s*/, '').trim())
+    .filter(s => s.length >= 15);
+}
+
 export async function onRequestGet({ env, request }) {
   try {
     const url = new URL(request.url);
@@ -108,17 +134,28 @@ export async function onRequestGet({ env, request }) {
         next: `fb-item-${deckSlug}-0`
       };
 
-      // Each feedback item as accept/skip/reject branch
-      items.forEach((item, i) => {
+      // Decompose each feedback item into discrete claims, then build branch nodes
+      let claimIndex = 0;
+      const allClaims = [];
+      for (const item of items) {
+        const claims = decomposeFeedback(item.text);
+        // If decomposition yields nothing, use original text as single claim
+        const effectiveClaims = claims.length > 0 ? claims : (item.text && item.text.length >= 15 ? [item.text] : []);
+        for (const claim of effectiveClaims) {
+          allClaims.push({ claim, source: item });
+        }
+      }
+
+      allClaims.forEach((entry, i) => {
         const nodeId = `fb-item-${deckSlug}-${i}`;
-        const nextNodeId = i < items.length - 1 ? `fb-item-${deckSlug}-${i + 1}` : `fb-summary-${deckSlug}`;
-        const pathArr = typeof item.path_taken === 'string' ? JSON.parse(item.path_taken || '[]') : (item.path_taken || []);
+        const nextNodeId = i < allClaims.length - 1 ? `fb-item-${deckSlug}-${i + 1}` : `fb-summary-${deckSlug}`;
+        const pathArr = typeof entry.source.path_taken === 'string' ? JSON.parse(entry.source.path_taken || '[]') : (entry.source.path_taken || []);
         const pathStr = pathArr.join(' → ') || 'unknown path';
 
         nodes[nodeId] = {
           type: 'branch',
-          title: `"${item.text}"`,
-          subtitle: `Left at node: ${item.current_node || 'unknown'} | Path: ${pathStr}`,
+          title: `"${entry.claim}"`,
+          subtitle: `Left at node: ${entry.source.current_node || 'unknown'} | Path: ${pathStr}`,
           branches: [
             { label: 'Accept this feedback', desc: 'Include in refinement prompt', target: nextNodeId, contextKey: `fb-${i}`, contextValue: 'accept' },
             { label: 'Note but skip', desc: 'Interesting but not actionable now', target: nextNodeId, contextKey: `fb-${i}`, contextValue: 'skip' },
@@ -128,9 +165,19 @@ export async function onRequestGet({ env, request }) {
       });
 
       nodes[`fb-summary-${deckSlug}`] = {
-        type: 'hero',
+        type: 'branch',
         title: `Review complete for ${deckTitle}`,
-        subtitle: 'Your accept/skip/reject choices have been recorded. Use the analytics export to generate a refinement prompt.',
+        subtitle: 'Your accept/skip/reject choices have been recorded. Generate a refinement prompt via GET /api/feedback-refinement',
+        branches: [
+          { label: 'Generate refinement prompt', desc: 'GET /api/feedback-refinement to build a ./deck refine command', target: `fb-done-${deckSlug}` },
+          { label: 'Done', desc: 'Finish review without generating prompt', target: `fb-done-${deckSlug}` }
+        ]
+      };
+
+      nodes[`fb-done-${deckSlug}`] = {
+        type: 'hero',
+        title: `${deckTitle} — Review Complete`,
+        subtitle: 'Choices saved. Use /api/feedback-refinement to retrieve your refinement prompt.',
         next: null
       };
     }
