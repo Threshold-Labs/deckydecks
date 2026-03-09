@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS feedback (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id TEXT,
   deck_title TEXT,
+  deck_id TEXT,
   current_node TEXT,
   text TEXT NOT NULL,
   path_taken TEXT,
@@ -40,11 +41,13 @@ CREATE TABLE IF NOT EXISTS decks (
   r2_key TEXT NOT NULL,
   device_id TEXT,
   user_id TEXT,
+  visibility TEXT DEFAULT 'public',
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_deck ON feedback(deck_title);
+CREATE INDEX IF NOT EXISTS idx_feedback_deck_id ON feedback(deck_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_session ON feedback(session_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_deck ON sessions(deck_title);
 CREATE INDEX IF NOT EXISTS idx_sessions_session ON sessions(session_id);
