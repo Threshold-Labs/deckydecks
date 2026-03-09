@@ -37,10 +37,42 @@ export async function onRequestPost({ request, env }) {
 export async function onRequestGet({ env, request }) {
   const url = new URL(request.url);
   const deckFilter = url.searchParams.get('deck');
+  const deckIdFilter = url.searchParams.get('deck_id');
+  const ownerMode = url.searchParams.get('mine');
 
   let result;
-  if (deckFilter) {
+
+  if (deckIdFilter) {
+    // Filter by deck_id (exact match)
+    result = await env.DB.prepare('SELECT * FROM feedback WHERE deck_id = ? ORDER BY created_at DESC').bind(deckIdFilter).all();
+  } else if (deckFilter) {
+    // Filter by deck_title (legacy)
     result = await env.DB.prepare('SELECT * FROM feedback WHERE deck_title = ? ORDER BY created_at DESC').bind(deckFilter).all();
+  } else if (ownerMode) {
+    // Return feedback on all decks owned by this caller
+    const callerDevice = request.headers.get('X-Device-Id') || null;
+    const authHeader = request.headers.get('Authorization') || '';
+    let callerUser = null;
+    if (authHeader.startsWith('Bearer thld_ut_')) {
+      callerUser = authHeader.substring(7, 47);
+    }
+
+    // Find all deck_ids owned by this user/device, then get feedback on those
+    const ownedDecks = await env.DB.prepare(`
+      SELECT id FROM decks
+      WHERE (device_id = ? OR user_id = ?)
+    `).bind(callerDevice, callerUser).all();
+
+    const deckIds = ownedDecks.results.map(d => d.id);
+    if (deckIds.length === 0) {
+      return Response.json([]);
+    }
+
+    // D1 doesn't support IN with bindings easily, so use a union approach
+    const placeholders = deckIds.map(() => '?').join(',');
+    result = await env.DB.prepare(
+      `SELECT * FROM feedback WHERE deck_id IN (${placeholders}) ORDER BY created_at DESC`
+    ).bind(...deckIds).all();
   } else {
     result = await env.DB.prepare('SELECT * FROM feedback ORDER BY created_at DESC').all();
   }
