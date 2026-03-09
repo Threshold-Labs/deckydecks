@@ -1,24 +1,45 @@
 const SPEC_DOCS = `DECK SPEC FORMAT:
 A JSON object with "meta" and "nodes" keys.
 
-meta: { title: string, author: string, startNode: string }
+meta: { title: string, author: string, startNode: string, theme?: "dark" | "light" | "threshold" }
+  - theme is optional. "dark" = cinematic dark with purple accents (default), "light" = warm white background with green accents, "threshold" = dark with lime accents and grid texture.
 
 nodes: object keyed by node ID (kebab-case), each node has:
-  - type: "hero" | "content" | "branch"
+  - type: "hero" | "content" | "branch" | "chart" | "input"
   - title: string (required)
   - subtitle: string (for hero and branch types)
   - body: string with inline HTML (for content type, supports <p>, <strong>, <em>)
   - bullets: string[] (for content type, optional)
   - code: string (for content type, optional — HTML with syntax highlight spans using classes: kw, str, cm, fn, num)
+  - chartType: "bar" | "scorecard" | "comparison" (for chart type only)
+  - data: array (for chart type only)
+    - bar: [{ label: string, value: number, color?: string }] — horizontal bars, max value = 100% width
+    - scorecard: [{ label: string, value: string|number, delta?: string, color?: string }] — KPI cards with optional "+12%" or "-5%" deltas
+    - comparison: [{ key: value, ... }] — first item keys become headers; true→checkmark, false→X; optional _highlight: true to accent a row
   - next: string | null (node ID for linear navigation, null for final slide)
   - branches: array of { label: string, desc: string, target: string } (for branch type only)
+
+  INPUT NODE (type: "input"):
+  Interactive input nodes gather audience preferences, priorities, or ratings. They use an "inputType" field:
+  - "slider": single slider with value display
+    Fields: inputType: "slider", min: number, max: number, step: number, default: number, labels: [minLabel, maxLabel], inputKey: string, next: string
+  - "multiselect": tag/chip selection (click to toggle)
+    Fields: inputType: "multiselect", options: string[], maxSelections?: number, inputKey: string, next: string
+  - "ranking": drag-to-reorder prioritization list
+    Fields: inputType: "ranking", items: string[], inputKey: string, next: string
+  - "scale": multiple labeled sliders (rating matrix)
+    Fields: inputType: "scale", dimensions: [{ label: string, min: number, max: number }], inputKey: string, next: string
+  Input nodes use "next" for navigation (NOT "branches"). The inputKey stores the captured value in session data.
 
 RULES:
 - Every path through the graph must eventually reach a node with "next": null
 - All branch targets must point to valid node IDs
 - Branch nodes use "branches" array, NOT "next"
-- Linear/hero/content nodes use "next", NOT "branches"
+- Linear/hero/content/chart nodes use "next", NOT "branches"
+- Use chart nodes for data visualization when the source content includes statistics, comparisons, or metrics
 - Include 2-3 branch points for audience self-selection
+- Use input nodes to gather audience preferences, priorities, or ratings. Input nodes create interactive moments that make the deck feel like a conversation, not a lecture. Don't overuse them — 1-2 per deck is ideal.
+- Branch options should be creative and varied — avoid defaulting to technical vs. business splits. Consider audience identity, interest level, use case, learning style, or emotional resonance as branch dimensions.
 - All branches should converge back to shared nodes (no orphaned dead ends)
 - Start with a hero slide, end with a hero slide
 - Node IDs should be kebab-case descriptive names`;
@@ -63,16 +84,24 @@ async function fetchGitHubContent(repoUrl) {
 function buildGeneratePrompt(sourceContent, ctx) {
   const slideCount = { quick: '5-8', standard: '10-15', deep: '18-25' }[ctx.depth] || '10-15';
   const titleLine = ctx.title ? `- The deck title should be: ${ctx.title}` : '';
+  const themeLine = ctx.theme && ctx.theme !== 'dark' ? `- Set meta.theme to "${ctx.theme}"` : '';
+
+  // Build creative direction from dynamic wizard answers (replaces static audience/goal)
+  const skipKeys = new Set(['source', 'repoUrl', 'pastedContent', 'sourceContent', 'depth', 'theme', 'title', 'apiKey']);
+  const creativeDirection = Object.entries(ctx)
+    .filter(([k, v]) => !skipKeys.has(k) && typeof v === 'string' && v.length > 0)
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join('\n');
 
   return `You are a presentation designer. Generate a branching deck spec as valid JSON.
 
 ${SPEC_DOCS}
 
 REQUIREMENTS:
-- Audience: ${ctx.audience || 'mixed'}
-- Goal: ${ctx.goal || 'explain'}
 - Target slide count: ${slideCount} (including branch variants)
 ${titleLine}
+${themeLine}
+${creativeDirection ? `\nCREATIVE DIRECTION (from the user's choices):\n${creativeDirection}\nUse these to shape the narrative angle, tone, emphasis, and structure of the deck.\n` : ''}
 - Include 2-3 branch points where the audience can self-select their path
 - Make branch questions feel like genuine moments of audience engagement
 - All branches should converge back to shared closing slides
@@ -108,6 +137,104 @@ function extractJson(text) {
   throw new Error('Could not parse JSON from Claude response');
 }
 
+function validateDeck(deck) {
+  const errors = [];
+
+  if (!deck || typeof deck !== 'object') {
+    return ['Deck is not an object'];
+  }
+  if (!deck.meta || !deck.meta.title || !deck.meta.startNode) {
+    errors.push('Missing meta.title or meta.startNode');
+  }
+  if (!deck.nodes || typeof deck.nodes !== 'object' || Object.keys(deck.nodes).length === 0) {
+    errors.push('Missing or empty nodes');
+  }
+  if (errors.length) return errors;
+
+  const nodeIds = new Set(Object.keys(deck.nodes));
+
+  // startNode must exist
+  if (!nodeIds.has(deck.meta.startNode)) {
+    errors.push(`startNode "${deck.meta.startNode}" does not exist in nodes`);
+  }
+
+  for (const [id, node] of Object.entries(deck.nodes)) {
+    if (!node.type) {
+      errors.push(`Node "${id}" missing type`);
+    }
+    if (!node.title && node.type !== 'action') {
+      errors.push(`Node "${id}" missing title`);
+    }
+
+    // Check branch targets
+    if (node.branches && Array.isArray(node.branches)) {
+      for (const b of node.branches) {
+        if (!b.target || !nodeIds.has(b.target)) {
+          errors.push(`Branch target "${b.target}" in node "${id}" does not exist`);
+        }
+      }
+    }
+
+    // Check next target
+    if (node.next && !nodeIds.has(node.next)) {
+      errors.push(`Next target "${node.next}" in node "${id}" does not exist`);
+    }
+  }
+
+  // Check for reachability from startNode
+  const visited = new Set();
+  const queue = [deck.meta.startNode];
+  while (queue.length) {
+    const current = queue.shift();
+    if (visited.has(current) || !nodeIds.has(current)) continue;
+    visited.add(current);
+    const node = deck.nodes[current];
+    if (node.next) queue.push(node.next);
+    if (node.branches) {
+      for (const b of node.branches) {
+        if (b.target) queue.push(b.target);
+      }
+    }
+  }
+
+  const unreachable = [...nodeIds].filter(id => !visited.has(id));
+  if (unreachable.length) {
+    errors.push(`Unreachable nodes: ${unreachable.join(', ')}`);
+  }
+
+  // Check at least one terminal node exists
+  const hasTerminal = Object.values(deck.nodes).some(n => n.next === null && !n.branches);
+  if (!hasTerminal) {
+    errors.push('No terminal node found (node with next: null and no branches)');
+  }
+
+  return errors;
+}
+
+async function callClaude(apiKey, prompt) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Claude API error: ${response.status} ${err}`);
+  }
+
+  const result = await response.json();
+  return result.content?.[0]?.text || '';
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const ctx = await request.json();
@@ -132,29 +259,30 @@ export async function onRequestPost({ request, env }) {
 
     const prompt = buildGeneratePrompt(sourceContent, ctx);
 
-    // Call Claude API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8192,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
+    // Generate with validation + retry (up to 2 attempts)
+    const MAX_ATTEMPTS = 2;
+    let deck = null;
+    let lastErrors = [];
 
-    if (!response.ok) {
-      const err = await response.text();
-      return Response.json({ error: `Claude API error: ${response.status} ${err}` }, { status: 502 });
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const currentPrompt = attempt === 1
+        ? prompt
+        : `${prompt}\n\nIMPORTANT — Your previous attempt had these structural errors:\n${lastErrors.map(e => `- ${e}`).join('\n')}\nFix ALL of these issues. Ensure every branch target points to a valid node ID and all nodes are reachable from startNode.`;
+
+      const text = await callClaude(apiKey, currentPrompt);
+      deck = extractJson(text);
+
+      const errors = validateDeck(deck);
+      if (errors.length === 0) break;
+
+      lastErrors = errors;
+      console.log(`[generate] Attempt ${attempt} validation failed:`, errors);
+
+      if (attempt === MAX_ATTEMPTS) {
+        // Return the deck anyway with a warning — it's usable even if imperfect
+        console.log('[generate] Returning deck with validation warnings after max attempts');
+      }
     }
-
-    const result = await response.json();
-    const text = result.content?.[0]?.text || '';
-    const deck = extractJson(text);
 
     // Save to R2
     const slug = (deck.meta?.title || 'deck').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
