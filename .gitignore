@@ -11,5 +11,9 @@ feedback.jsonl
 # Node
 node_modules/
 
-# Deploy artifact
+# Deploy artifacts
 .deploy/
+.deploy-ddd/
+
+# Test artifacts
+test-results/

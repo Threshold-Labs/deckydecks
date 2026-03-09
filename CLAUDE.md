@@ -13,6 +13,14 @@ A deck is a JSON graph with `meta` (title, author, startNode) and `nodes` (keyed
 - **hero** — Big centered statement (title + subtitle)
 - **content** — Title + body/bullets/code
 - **branch** — Choice point with 2-3 options, each targeting a different node
+- **chart** — Data visualization (chartType: `bar` | `scorecard` | `comparison`). Bar charts animate on slide entry. Scorecard shows KPI cards with optional deltas. Comparison renders a clean table with boolean checkmarks.
+- **input** — Interactive input collection. Two modes:
+  - **Generator inputs**: `inputType` = `url` | `textarea` | `text` | `apikey`. Uses `placeholder`, `contextKey`, `next`. Part of the deck generator wizard flow.
+  - **Interactive inputs**: `inputType` = `slider` | `multiselect` | `ranking` | `scale`. Uses `inputKey`, `next`. Captured values stored in `deckInputs` and included in session data.
+    - `slider`: single range with value bubble, min/max labels
+    - `multiselect`: chip/pill grid, optional `maxSelections`
+    - `ranking`: drag-to-reorder list (desktop drag + mobile touch)
+    - `scale`: multiple labeled sliders (rating matrix with dimensions)
 - **demo** — Placeholder for embedded interactive content
 
 Navigation edges: `next` (linear) or `branches[]` (choice point with targets).
@@ -36,7 +44,12 @@ Navigation edges: `next` (linear) or `branches[]` (choice point with targets).
 
 ### Theming
 
-All visual properties use CSS custom properties on `:root`. Override them to retheme.
+Three built-in themes via `[data-theme]` on `<html>`:
+- **dark** (default) — cinematic dark with purple accents
+- **light** — warm white background (`#fafaf9`), forest green accents
+- **threshold** — dark with lime (`#c4f74a`) accents and 60px grid texture
+
+Set via `meta.theme` in the deck spec. All visual properties use CSS custom properties; themes override `:root` defaults.
 
 ### CLI Tool (`./deck`)
 

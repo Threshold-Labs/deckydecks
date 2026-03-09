@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "title": "DeckyDeckDecks: The Third Layer",
+    "author": "The Recursion Department of Recursion",
+    "startNode": "hero-open",
+    "theme": "threshold"
+  },
+  "nodes": {
+    "hero-open": {
+      "type": "hero",
+      "title": "Welcome to DeckyDeckDecks.com",
+      "subtitle": "A deck about a site about decks about decks. You're three layers deep. There's no going back.",
+      "next": "the-situation"
+    },
+    "the-situation": {
+      "type": "content",
+      "title": "Let's Assess the Situation",
+      "body": "<p>You typed <strong>deckydeckdecks.com</strong> into a browser. Three 'deck's. You did this <em>on purpose</em>. That tells us something about you.</p>",
+      "bullets": [
+        "You either mistyped deckydecks.com (understandable)",
+        "Or you suspected there might be something here (concerning)",
+        "Or someone sent you this link (you have interesting friends)",
+        "Either way, you're here now. Among us."
+      ],
+      "next": "branch-why"
+    },
+    "branch-why": {
+      "type": "branch",
+      "title": "Why Are You Here?",
+      "subtitle": "Be honest. This is a safe space. (It's also a deck.)",
+      "branches": [
+        {
+          "label": "I typed too many deck's",
+          "desc": "Honest. Respectable. We'll get you where you need to go.",
+          "target": "typo-path"
+        },
+        {
+          "label": "I knew this would exist",
+          "desc": "You understand the internet. And recursion. And us.",
+          "target": "believer-path"
+        },
+        {
+          "label": "Someone sent me this",
+          "desc": "Your friend is either brilliant or unhinged. Possibly both.",
+          "target": "sent-path"
+        }
+      ]
+    },
+    "typo-path": {
+      "type": "content",
+      "title": "An Honest Mistake",
+      "body": "<p>Look, we get it. <strong>DeckyDecks</strong> already has two 'deck's in it. Adding a third is just muscle memory gone rogue.</p>",
+      "bullets": [
+        "Your fingers betrayed you",
+        "But your subconscious knew what it was doing",
+        "The third 'deck' was inside you all along",
+        "And now you're watching a presentation about it"
+      ],
+      "next": "convergence-realization"
+    },
+    "believer-path": {
+      "type": "content",
+      "title": "You Absolute Legend",
+      "body": "<p>You <em>knew</em> someone would buy this domain. You <em>knew</em> it would be a deck. Because what else would it be? A normal website? <strong>Please.</strong></p>",
+      "bullets": [
+        "Of course it's a deck. Everything is a deck.",
+        "The landing page? Deck.",
+        "The feedback system? Also a deck.",
+        "This domain justification? You guessed it."
+      ],
+      "next": "believer-depth"
+    },
+    "believer-depth": {
+      "type": "chart",
+      "title": "Meta Depth vs. Domain Cost Justification",
+      "chartType": "bar",
+      "data": [
+        { "label": "decks.com", "value": 20, "color": "#4ade80" },
+        { "label": "deckydecks.com", "value": 55, "color": "#22c55e" },
+        { "label": "deckydeckdecks.com", "value": 85, "color": "#c4f74a" },
+        { "label": "deckydeckdeckdecks.com", "value": 100, "color": "#dc2626" }
+      ],
+      "next": "convergence-realization"
+    },
+    "sent-path": {
+      "type": "content",
+      "title": "About Your Friend",
+      "body": "<p>The person who sent you this link is trying to tell you something. They want you to know that <strong>presentations can be recursive</strong>, that <strong>domains can be jokes</strong>, and that <strong>you belong here</strong>.</p>",
+      "bullets": [
+        "They found the third layer and thought of you",
+        "That's either a compliment or an intervention",
+        "We choose to believe it's a compliment",
+        "Welcome to the community of people who get it"
+      ],
+      "next": "sent-one-of-us"
+    },
+    "sent-one-of-us": {
+      "type": "hero",
+      "title": "One of Us",
+      "subtitle": "One of us. One of us. One of us.",
+      "next": "convergence-realization"
+    },
+    "convergence-realization": {
+      "type": "content",
+      "title": "The Realization",
+      "body": "<p>However you got here, you've now spent real human minutes watching a presentation on a joke domain about a presentation tool that makes presentations about presentations.</p>",
+      "bullets": [
+        "Time you will never get back",
+        "But time you wouldn't trade either",
+        "Because this is genuinely more fun than whatever you were doing",
+        "And deep down, you want to make one of these yourself"
+      ],
+      "next": "branch-now-what"
+    },
+    "branch-now-what": {
+      "type": "branch",
+      "title": "So Now What?",
+      "subtitle": "You've seen the third layer. The question is: what do you do with this knowledge?",
+      "branches": [
+        {
+          "label": "Take me to the real thing",
+          "desc": "DeckyDecks.com — where you can actually make decks",
+          "target": "redirect-ready"
+        },
+        {
+          "label": "Go deeper",
+          "desc": "Is there a deckydeckdeckdecks.com? (There isn't. Yet.)",
+          "target": "deeper"
+        },
+        {
+          "label": "I just want to vibe here",
+          "desc": "Stay in the meta. We respect it.",
+          "target": "vibe-zone"
+        }
+      ]
+    },
+    "redirect-ready": {
+      "type": "hero",
+      "title": "Ascending to Layer Two",
+      "subtitle": "Taking you to DeckyDecks.com in 3... 2... 1...",
+      "next": "redirect-go"
+    },
+    "redirect-go": {
+      "type": "content",
+      "title": "Welcome to DeckyDecks",
+      "body": "<p style='text-align:center;margin-top:2rem;'><a href='https://deckydecks.com' style='display:inline-block;padding:1rem 3rem;background:var(--accent);color:#000;border-radius:12px;font-size:1.3rem;font-weight:700;text-decoration:none;transition:transform 0.2s;'>Launch DeckyDecks.com &rarr;</a></p>",
+      "bullets": [
+        "Create branching, interactive presentations",
+        "AI-generated decks from any content",
+        "Share with a link, get feedback as a deck",
+        "Everything is a deck. Now you know."
+      ],
+      "next": null
+    },
+    "deeper": {
+      "type": "content",
+      "title": "The Fourth Layer",
+      "body": "<p><strong>deckydeckdeckdecks.com</strong> is not registered. <em>Yet.</em></p><p>But let's be real — if you're reading this, someone is already thinking about buying it. The recursion wants to continue. The turtles demand it.</p>",
+      "bullets": [
+        "Layer 4: A deck about this deck about decks about decks",
+        "Layer 5: At this point it's just domain squatting with style",
+        "Layer 6: The DNS system files a restraining order",
+        "Layer 7: We achieve presentation singularity"
+      ],
+      "next": "deeper-chart"
+    },
+    "deeper-chart": {
+      "type": "chart",
+      "title": "Projected Domain Registrations",
+      "chartType": "scorecard",
+      "data": [
+        { "label": "deckydecks.com", "value": "Registered", "delta": "Live", "color": "#4ade80" },
+        { "label": "deckydeckdecks.com", "value": "Registered", "delta": "You're here", "color": "#c4f74a" },
+        { "label": "deckydeckdeckdecks.com", "value": "$12/yr", "delta": "Tempting", "color": "#facc15" },
+        { "label": "decky\u00b9\u2070decks.com", "value": "Illegal", "delta": "Probably", "color": "#dc2626" }
+      ],
+      "next": "deeper-choice"
+    },
+    "deeper-choice": {
+      "type": "branch",
+      "title": "Satisfied?",
+      "subtitle": "The void has been stared into. It stared back. In JSON.",
+      "branches": [
+        {
+          "label": "Take me to DeckyDecks",
+          "desc": "Time to actually make something",
+          "target": "redirect-ready"
+        },
+        {
+          "label": "Let me vibe",
+          "desc": "I'm not ready to leave the third layer",
+          "target": "vibe-zone"
+        }
+      ]
+    },
+    "vibe-zone": {
+      "type": "input",
+      "title": "How Meta Do You Feel Right Now?",
+      "subtitle": "Take a moment. Breathe. You're inside a deck inside a joke inside the internet.",
+      "inputType": "slider",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 69,
+      "labels": ["Barely Recursive", "I Am The Deck"],
+      "inputKey": "meta-feeling",
+      "next": "vibe-ranking"
+    },
+    "vibe-ranking": {
+      "type": "input",
+      "title": "Rank These Truths",
+      "subtitle": "Drag to reorder by how much they resonate with your soul.",
+      "inputType": "ranking",
+      "items": [
+        "Everything is a deck",
+        "The real presentation was the friends we made",
+        "JSON is a lifestyle, not a format",
+        "Three deck's is the correct number of deck's",
+        "We need to go deeper"
+      ],
+      "inputKey": "truth-ranking",
+      "next": "vibe-finale"
+    },
+    "vibe-finale": {
+      "type": "hero",
+      "title": "One of Us",
+      "subtitle": "You made it to the end of the third layer. You ranked truths about recursion. You are irreversibly one of us.",
+      "next": "final-redirect"
+    },
+    "final-redirect": {
+      "type": "content",
+      "title": "Now Go Make Something",
+      "body": "<p>You've earned your stripes. You've seen the turtles. Now it's time to create your own recursive nightmare.</p><p style='text-align:center;margin-top:2rem;'><a href='https://deckydecks.com' style='display:inline-block;padding:1rem 3rem;background:var(--accent);color:#000;border-radius:12px;font-size:1.3rem;font-weight:700;text-decoration:none;transition:transform 0.2s;'>Enter DeckyDecks.com &rarr;</a></p>",
+      "bullets": [
+        "Make a deck",
+        "Make a deck about your deck",
+        "Share it with someone who will appreciate the recursion",
+        "Buy deckydeckdeckdeckdecks.com (don't actually)"
+      ],
+      "next": null
+    }
+  }
+}
