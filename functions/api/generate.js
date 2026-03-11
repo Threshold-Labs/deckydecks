@@ -108,6 +108,40 @@ function formatInterestData(interests) {
   return lines.join('\n');
 }
 
+function formatIdeasSignal(signal) {
+  const lines = [
+    `CAPABILITY ROADMAP — ${signal.clusterCount} capability clusters derived from ${signal.totalIdeas} ideas involving ${signal.totalPeople} people.`,
+    '',
+    'Each cluster represents a shared functional building block that appears across multiple ideas, mapped to the people best suited to own it.',
+    '',
+  ];
+
+  for (const cluster of signal.clusters) {
+    lines.push(`## ${cluster.term} (score: ${cluster.score.toFixed(1)}, ${cluster.ideaCount} ideas)`);
+
+    if (cluster.ideas && cluster.ideas.length > 0) {
+      lines.push('Ideas:');
+      for (const idea of cluster.ideas) {
+        const attr = idea.person ? ` [${idea.person}]` : '';
+        lines.push(`  - ${idea.text}${attr}`);
+      }
+    }
+
+    if (cluster.people && cluster.people.length > 0) {
+      lines.push('Key people:');
+      for (const p of cluster.people) {
+        const match = p.direct ? 'direct idea match' : 'interest graph';
+        lines.push(`  - ${p.name} (${(p.relevance * 100).toFixed(0)}% relevance, ${match})`);
+      }
+    }
+
+    lines.push('');
+  }
+
+  lines.push(`Generated at: ${signal.pushedAt}`);
+  return lines.join('\n');
+}
+
 function buildGeneratePrompt(sourceContent, ctx) {
   const slideCount = { quick: '5-8', standard: '10-15', deep: '18-25' }[ctx.depth] || '10-15';
   const titleLine = ctx.title ? `- The deck title should be: ${ctx.title}` : '';
@@ -290,16 +324,15 @@ export async function onRequestPost({ request, env }) {
 
     // Fetch source content
     let sourceContent = '';
-    if (ctx.source === 'github' && ctx.repoUrl) {
+    if (ctx.source === 'threshold-signal') {
+      // Source content will be populated from the ideas signal below
+      sourceContent = ctx.sourceContent || '';
+    } else if (ctx.source === 'github' && ctx.repoUrl) {
       sourceContent = await fetchGitHubContent(ctx.repoUrl);
     } else if (ctx.source === 'paste' || ctx.source === 'describe') {
       sourceContent = ctx.pastedContent || '';
     } else if (ctx.sourceContent) {
       sourceContent = ctx.sourceContent;
-    }
-
-    if (!sourceContent) {
-      return Response.json({ error: 'No source content provided' }, { status: 400 });
     }
 
     // Optionally fetch interest-graph data from Threshold trust graph
@@ -324,6 +357,31 @@ export async function onRequestPost({ request, env }) {
       } catch (err) {
         console.log('[generate] Interest-graph fetch failed (non-blocking):', err.message);
       }
+    }
+
+    // Fetch ideas capability signal from Threshold (cross-app composition)
+    // When the ideas app pushes capability clusters to Threshold, deckydecks
+    // can read them and use as source content for deck generation.
+    if (ctx.thresholdToken && ctx.source === 'threshold-signal') {
+      try {
+        const sigRes = await fetch('https://thresholdlabs.io/api/signals/ideas', {
+          headers: { Authorization: `Bearer ${ctx.thresholdToken}` },
+        });
+        if (sigRes.ok) {
+          const signal = await sigRes.json();
+          if (signal.clusters && signal.clusters.length > 0) {
+            // Format capability clusters as source content for deck generation
+            sourceContent = formatIdeasSignal(signal);
+            console.log(`[generate] Injected ideas signal: ${signal.clusters.length} capability clusters`);
+          }
+        }
+      } catch (err) {
+        console.log('[generate] Ideas signal fetch failed (non-blocking):', err.message);
+      }
+    }
+
+    if (!sourceContent) {
+      return Response.json({ error: 'No source content provided' }, { status: 400 });
     }
 
     const prompt = buildGeneratePrompt(sourceContent, ctx);

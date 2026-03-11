@@ -4024,6 +4024,34 @@ checkLocalServer(); // fire-and-forget, detects generation backend
   }
 
   const params = new URLSearchParams(window.location.search);
+
+  // Handle Threshold signal-based generation (cross-app flow from ideas app)
+  const signalParam = params.get('signal');
+  const tokenParam = params.get('token');
+  if (signalParam === 'ideas' && tokenParam) {
+    // Clean URL params immediately
+    window.history.replaceState({}, '', '/');
+    // Set up generator context for threshold-signal source and auto-generate
+    generatorContext = {
+      source: 'threshold-signal',
+      thresholdToken: tokenParam,
+      depth: 'standard',
+    };
+    // Show a generation deck that immediately triggers generation
+    const autoGenDeck = {
+      meta: { title: 'Generating from Ideas', startNode: 'gen', theme: 'threshold' },
+      nodes: {
+        gen: {
+          type: 'generate',
+          title: 'Building your pitch deck...',
+          subtitle: 'Reading capability clusters from Threshold and generating a personalized presentation.',
+        },
+      },
+    };
+    launchDeck(autoGenDeck);
+    return;
+  }
+
   const deckParam = params.get('deck');
   if (deckParam) {
     // Try to load the specified deck

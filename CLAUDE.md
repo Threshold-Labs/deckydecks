@@ -90,8 +90,25 @@ DeckyDecks composes the `interest-graph` capability via the Threshold trust grap
 
 **Capability composition** (registered in `threshold-capabilities/register.ts`):
 - `deckydecks` ← `interest-graph` (role: audience personalization)
+- `deckydecks` ← `stripe-payment` (role: monetization — planned)
+
+### Monetization (via stripe-payment capability)
+
+Planned integration with the `stripe-payment` capability in `threshold-capabilities/stripe-payment/`. Creator owns their Stripe account; Threshold routes payments.
+
+| Flow | Status | Notes |
+|------|--------|-------|
+| Tip jar | Planned | Viewer finishes deck → tip button → Stripe Checkout → funds to creator |
+| Paid deck | Planned | Payment gate before content, one-time purchase |
+| QR code tips | Planned | Live presentation → QR at end → audience tips from phone |
+
+**SDK gaps blocking this** (tracked in `threshold-capabilities/ROADMAP.md`):
+- No `createCheckoutSession()` in SDK — app must call capability directly
+- No `getPaymentStatus()` — needed for content gating
+- No signal subscription pattern — `payment:completed` can't push to app yet
 
 ### Future
 
 - Presenter mode with notes
 - Pattern 2 integration for audience analytics aggregation
+- Stripe payment integration (tip jars, paid decks) — see Monetization above
