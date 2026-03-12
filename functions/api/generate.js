@@ -368,7 +368,9 @@ export async function onRequestPost({ request, env }) {
           headers: { Authorization: `Bearer ${ctx.thresholdToken}` },
         });
         if (sigRes.ok) {
-          const signal = await sigRes.json();
+          const sigResponse = await sigRes.json();
+          // The signal endpoint wraps: { source, signal: <payload>, pushedAt }
+          const signal = sigResponse.signal || sigResponse;
           if (signal.clusters && signal.clusters.length > 0) {
             // Format capability clusters as source content for deck generation
             sourceContent = formatIdeasSignal(signal);
