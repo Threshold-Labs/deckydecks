@@ -198,17 +198,23 @@ function extractJson(text) {
   if (first >= 0 && last > first) {
     const candidate = text.substring(first, last + 1);
     try { return JSON.parse(candidate); } catch {}
-    // Try fixing common JSON issues: trailing commas before } or ]
-    const cleaned = candidate
-      .replace(/,\s*([}\]])/g, '$1')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t');
-    try { return JSON.parse(cleaned); } catch {}
-    // One more: the newline escaping above is too aggressive for already-valid strings
-    // Try just trailing comma fix
+    // Fix trailing commas before } or ]
     const commaFixed = candidate.replace(/,\s*([}\]])/g, '$1');
-    try { return JSON.parse(commaFixed); } catch (e) {
+    try { return JSON.parse(commaFixed); } catch {}
+    // Fix unescaped control characters inside JSON string values only
+    // (don't touch structural whitespace between keys/values)
+    const controlFixed = commaFixed.replace(
+      /"(?:[^"\\]|\\.)*"/g,
+      match => match.replace(/[\x00-\x1f]/g, ch => {
+        switch (ch) {
+          case '\n': return '\\n';
+          case '\r': return '\\r';
+          case '\t': return '\\t';
+          default: return '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0');
+        }
+      })
+    );
+    try { return JSON.parse(controlFixed); } catch (e) {
       console.log('[generate] JSON parse failed after cleanup:', e.message);
       console.log('[generate] First 500 chars:', candidate.substring(0, 500));
     }

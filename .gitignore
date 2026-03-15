@@ -4,6 +4,10 @@ feedback.jsonl
 
 # Generated/personal decks (engine ships with inline sample only)
 *.deck.json
+*.json
+!package.json
+!package-lock.json
+!deckydeckdecks.json
 
 # OS
 .DS_Store
